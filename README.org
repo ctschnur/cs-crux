@@ -1,0 +1,12 @@
+* Collection of (not-out-of-the-box) emacs functionality I find useful
+The functions are documented sufficiently well. 
+Some of my favorites are: 
+- find the next file of the same type (sorted by name) in the current directory; with prefix arg, find the previous file:  ~find-next-file~. *This enables flipping through pdfs at the push of an up/down button*. I find this useful for data analysis. 
+- copying the filepath from any open file or folder (dired) with ~cs-put-file-name-on-clipboard~
+- opening a copied filepath in emacs with ~cs-open-file-from-clipboard~
+- opening an outside terminal (at the current directory) running a new tmux session with ~outside-terminal-with-tmux~
+- opening an outside browser (at the current directory) with ~outside-browser~
+- opening an outside explorer (at the current directory) with ~outside-explorer~
+- toggling the emacs margin to be larger, for writing/reading longer texts, with ~my-toggle-margins~
+- move to the beginning of the line minus the whitespace (and then toggling between this position and the actual beginning), with ~cs-move-to-beginning-of-visual-line~
+
