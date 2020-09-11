@@ -135,7 +135,26 @@ With prefix arg, find the previous file. Adapted from https://emacs.stackexchang
   (interactive)
   (shell-command "gnome-terminal -e 'tmux new' >/dev/null"))
 
-(global-set-key (kbd "C-x C-m C-t") 'outside-terminal-with-tmux)
+(defun outside-terminal-with-windows ()
+  "open git-bash or cmd, if git-bash is not installed"
+  (interactive)
+  (let ((proc (let* ((git-bash-path "C:/Users/nanospin/AppData/Local/Programs/Git/git-bash.exe"))
+                (if (file-exists-p git-bash-path)
+                    (progn
+                      (start-process "cmd" nil "cmd.exe" "/C"
+                                     "start" git-bash-path))
+                  (start-process "cmd" nil "cmd.exe" "/C" "start"
+                                 "cmd.exe")))))
+    (set-process-query-on-exit-flag proc nil)))
+
+(defun outside-terminal ()
+  (interactive)
+  (if (eq system-type 'gnu/linux)
+      (outside-terminal-with-tmux)
+    (if (eq system-type 'windows-nt)
+        (outside-terminal-with-windows))))
+
+(global-set-key (kbd "C-x C-m C-t") 'outside-terminal)
 
 (defun outside-explorer ()
   (interactive)
