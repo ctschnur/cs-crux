@@ -23,6 +23,11 @@
 
 ;;; Code:
 
+(defvar cs-crux-directory nil "*Directory for data files belonging to package `foo`.")
+(setq cs-crux-directory (file-name-directory (if load-file-name
+                                                 load-file-name
+                                               (buffer-file-name))))
+
 (defun find-next-file (&optional backward)
   "Find the next file (of the same type, sorted by name) in the current directory.
 With prefix arg, find the previous file. Adapted from https://emacs.stackexchange.com/a/12164"
@@ -45,40 +50,43 @@ With prefix arg, find the previous file. Adapted from https://emacs.stackexchang
       (find-file (nth pos files)))))
 
 (define-key pdf-view-mode-map (kbd "M-n") 'find-next-file)
-(define-key pdf-view-mode-map (kbd "M-p") (lambda () (interactive)
+(define-key pdf-view-mode-map (kbd "M-p") (lambda ()
+                                            (interactive)
                                             (let ((current-prefix-arg 4))
                                               (call-interactively 'find-next-file))))
 
 (defun cs-dired-open-file-externally ()
-    "In dired, open the filepath named on this line."
-    (interactive)
-    (let* ((filepath (dired-get-filename nil t)))
-      (message "Opening %s..." filepath)
-      (cond ((string-equal (file-name-extension filepath) "ipynb")
-             (cs-dired-open-notebook filepath))
-            (t (call-process "xdg-open" nil 0 nil filepath)))))
+  "In dired, open the filepath named on this line."
+  (interactive)
+  (let* ((filepath (dired-get-filename nil t)))
+    (message "Opening %s..." filepath)
+    (cond
+     ((string-equal (file-name-extension filepath)
+                    "ipynb")
+      (cs-dired-open-notebook filepath))
+     (t (call-process "xdg-open" nil 0 nil filepath)))))
 
 (define-key dired-mode-map (kbd "C-c C-o") 'cs-dired-open-file-externally)
 
 (defun cs-move-to-beginning-of-visual-line ()
-    "Move to the beginning of the visual line minus the whitespace, then toggle."
-    (interactive)
-    (let* (pos-first-non-ws-char-in-cur-vis-line)
-      (save-excursion
+  "Move to the beginning of the visual line minus the whitespace, then toggle."
+  (interactive)
+  (let* (pos-first-non-ws-char-in-cur-vis-line)
+    (save-excursion
+      (beginning-of-visual-line)
+      (setq pos-first-non-ws-char-in-cur-vis-line (if (string-match "\s" (string (char-after (point))))
+                                                      (search-forward-regexp "\s+"
+                                                                             (save-excursion
+                                                                               (end-of-visual-line)
+                                                                               (point))
+                                                                             t)
+                                                    (point))))
+    (if (equal pos-first-non-ws-char-in-cur-vis-line (point))
         (beginning-of-visual-line)
-        (setq pos-first-non-ws-char-in-cur-vis-line
-              (if (string-match "\s" (string (char-after (point))))
-                  (search-forward-regexp "\s+"
-                                         (save-excursion
-                                           (end-of-visual-line)
-                                           (point))
-                                         t)
-                (point))))
-      (if (equal pos-first-non-ws-char-in-cur-vis-line (point))
-          (beginning-of-visual-line)
-        (goto-char pos-first-non-ws-char-in-cur-vis-line))))
+      (goto-char pos-first-non-ws-char-in-cur-vis-line))))
 
-(global-set-key (kbd "C-a") #'cs-move-to-beginning-of-visual-line)
+(global-set-key (kbd "C-a")
+                #'cs-move-to-beginning-of-visual-line)
 
 (defun my-toggle-margins (&optional enable-thick-margin)
   "Set margins in current buffer."
@@ -108,27 +116,27 @@ With prefix arg, find the previous file. Adapted from https://emacs.stackexchang
                             (point-max)
                             '(read-only t))))
 
-(global-set-key (kbd "C-x w") 'cs-make-all-writable)
+(global-set-key (kbd "C-x w")
+                'cs-make-all-writable)
 
 (defun list-packages-and-versions ()
   "Returns a list of all installed packages and their versions"
-  (mapcar
-   (lambda (pkg)
-     `(,pkg ,(package-desc-version
-              (cadr (assq pkg package-alist)))))
-   package-activated-list))
+  (mapcar (lambda (pkg)
+            `(,pkg
+              ,(package-desc-version (cadr (assq pkg package-alist)))))
+          package-activated-list))
 
-(defun google-quickly()
+(defun google-quickly ()
   "Googles a query or region if any."
   (interactive)
-  (browse-url
-   (concat
-    "http://www.google.com/search?ie=utf-8&oe=utf-8&q="
-    (if mark-active
-        (buffer-substring (region-beginning) (region-end))
-      (read-string "Google: ")))))
+  (browse-url (concat "http://www.google.com/search?ie=utf-8&oe=utf-8&q="
+                      (if mark-active
+                          (buffer-substring (region-beginning)
+                                            (region-end))
+                        (read-string "Google: ")))))
 
-(global-set-key (kbd "C-x C-g") 'google-quickly)
+(global-set-key (kbd "C-x C-g")
+                'google-quickly)
 
 
 (defun outside-terminal-with-tmux ()
@@ -154,38 +162,48 @@ With prefix arg, find the previous file. Adapted from https://emacs.stackexchang
     (if (eq system-type 'windows-nt)
         (outside-terminal-with-windows))))
 
-(global-set-key (kbd "C-x C-m C-t") 'outside-terminal)
+(global-set-key (kbd "C-x C-m C-t")
+                'outside-terminal)
 
 (defun outside-explorer ()
   (interactive)
-  (setq s (concat "nautilus " (file-name-directory buffer-file-name) " & "))
+  (setq s (concat "nautilus "
+                  (file-name-directory buffer-file-name)
+                  " & "))
   (message s)
   (call-process-shell-command s nil 0))
 
-(global-set-key (kbd "C-x C-m C-e") 'outside-explorer)  ; open gui file explorer
+(global-set-key (kbd "C-x C-m C-e")
+                'outside-explorer)  ; open gui file explorer
 
 (defun outside-browser ()
   (interactive)
-  (setq s (concat "chromium-browser " (file-name-directory buffer-file-name) " & "))
+  (setq s (concat "chromium-browser "
+                  (file-name-directory buffer-file-name)
+                  " & "))
   (message s)
   (call-process-shell-command s nil 0))
 
-(global-set-key (kbd "C-x C-m C-b") 'outside-browser)  ; open browser at that file
+(global-set-key (kbd "C-x C-m C-b")
+                'outside-browser)  ; open browser at that file
 
 (defun kill-non-visible-buffers ()
   "Kill all buffers not currently shown in a window somewhere."
   (interactive)
-  (dolist (buf  (buffer-list))
-    (unless (get-buffer-window buf 'visible) (kill-buffer buf))))
+  (dolist (buf (buffer-list))
+    (unless (get-buffer-window buf 'visible)
+      (kill-buffer buf))))
 
 (defun new-buffer-frame ()
   "Create a new frame with a new empty buffer."
   (interactive)
   (let ((buffer (generate-new-buffer "untitled")))
     (set-buffer-major-mode buffer)
-    (display-buffer buffer '(display-buffer-pop-up-frame . nil))))
+    (display-buffer buffer
+                    '(display-buffer-pop-up-frame . nil))))
 
-(global-set-key (kbd "C-c n") #'new-buffer-frame)
+(global-set-key (kbd "C-c n")
+                #'new-buffer-frame)
 
 ;; search for the current folder's desktop-setup.el file, load it and execute the create-project-desktop-setup function
 
@@ -201,29 +219,33 @@ With prefix arg, find the previous file. Adapted from https://emacs.stackexchang
     (when filename
       (with-temp-buffer
         (insert filename)
-        (clipboard-kill-region (point-min) (point-max)))
+        (clipboard-kill-region (point-min)
+                               (point-max)))
       (message filename))))
 
-(global-set-key (kbd "C-, c f c") 'cs-put-file-name-on-clipboard)
+(global-set-key (kbd "C-, c f c")
+                'cs-put-file-name-on-clipboard)
 
 
 ;; ---- open file from clipboard
 
 (defun cs-open-file-from-clipboard ()
   (interactive)
-  (find-file
-   (helm-read-file-name
-    "open filepath from clipboard: "
-    :initial-input (with-temp-buffer (yank) (buffer-string)))))
+  (find-file (helm-read-file-name "open filepath from clipboard: "
+                                  :initial-input (with-temp-buffer
+                                                   (yank)
+                                                   (buffer-string)))))
 
-(global-set-key (kbd "C-, c f o") 'cs-open-file-from-clipboard)
+(global-set-key (kbd "C-, c f o")
+                'cs-open-file-from-clipboard)
 
 
 ;; ---- drag and drop files (as links) from explorer into org-mode -----
 
 (defun my-dnd-func (event)
   (interactive "e")
-  (goto-char (nth 1 (event-start event)))
+  (goto-char (nth 1
+                  (event-start event)))
   (x-focus-frame nil)
   (let* ((payload (car (last event)))
          (type (car payload))
@@ -231,35 +253,53 @@ With prefix arg, find the previous file. Adapted from https://emacs.stackexchang
          (img-regexp "\\(png\\|jp[e]?g\\)\\>"))
     (cond
      ;; insert image link
-     ((and  (eq 'drag-n-drop (car event))
-            (eq 'file type)
-            (string-match img-regexp fname))
+     ((and (eq 'drag-n-drop (car event))
+           (eq 'file type)
+           (string-match img-regexp fname))
       (insert (format "[[%s]]" fname))
       (org-display-inline-images t t))
      ;; insert image link with caption
-     ((and  (eq 'C-drag-n-drop (car event))
-            (eq 'file type)
-            (string-match img-regexp fname))
+
+     ((and (eq 'C-drag-n-drop (car event))
+           (eq 'file type)
+           (string-match img-regexp fname))
       (insert "#+ATTR_ORG: :width 300\n")
-      (insert (concat  "#+CAPTION: " (read-input "Caption: ") "\n"))
+      (insert (concat "#+CAPTION: "
+                      (read-input "Caption: ")
+                      "\n"))
       (insert (format "[[%s]]" fname))
       (org-display-inline-images t t))
      ;; C-drag-n-drop to open a file
-     ((and  (eq 'C-drag-n-drop (car event))
-            (eq 'file type))
+
+     ((and (eq 'C-drag-n-drop (car event))
+           (eq 'file type))
       (find-file fname))
      ((and (eq 'M-drag-n-drop (car event))
            (eq 'file type))
       (insert (format "[[attachfile:%s]]" fname)))
      ;; regular drag and drop on file
+
      ((eq 'file type)
       (insert (format "[[%s]]\n" fname)))
-     (t
-      (error "I am not equipped for dnd on %s" payload)))))
+     (t (error "I am not equipped for dnd on %s" payload)))))
 
 (define-key org-mode-map (kbd "<drag-n-drop>") 'my-dnd-func)
 (define-key org-mode-map (kbd "<C-drag-n-drop>") 'my-dnd-func)
 (define-key org-mode-map (kbd "<M-drag-n-drop>") 'my-dnd-func)
+
+;; ---- jump to anaconda mode python library
+(defun cs-python-jump-to-file ()
+  "In pyvenv, the WORKON_HOME variable specifies the path to the conda environments.
+The name of the conda virtual environment is saved in dir-locals as pyvenv-workon in the project's root.
+On an import statement, this function jumps to the file at point in that conda virtual environment.
+(word-at-point)"
+  (interactive)
+  ;; (let* ((wap (word-at-point)))
+  ;;   (concat (file-name-as-directory (pyvenv-workon-home))
+  ;;           (file-name-as-directory pyvenv-workon)
+  ;;           "lib/site-packages/"
+  ;;           (set-text-properties 0 (length wap) nil wap)))
+  )
 
 (provide 'cs-crux)
 ;;; cs-crux.el ends here
