@@ -257,6 +257,31 @@ With prefix arg, find the previous file. Adapted from https://emacs.stackexchang
      (t
       (error "I am not equipped for dnd on %s" payload)))))
 
+
+
+
+
+(defun query-swap-strings (from-string to-string &optional delimited start end)
+  "Swap occurrences of FROM-STRING and TO-STRING.
+   Source: https://emacs.stackexchange.com/a/27170"
+  (interactive
+   (let ((common
+          (query-replace-read-args
+           (concat "Query swap"
+                   (if current-prefix-arg
+                       (if (eq current-prefix-arg '-) " backward" " word")
+                     "")
+                   (if (use-region-p) " in region" ""))
+           nil)))
+     (list (nth 0 common) (nth 1 common) (nth 2 common)
+           (if (use-region-p) (region-beginning))
+           (if (use-region-p) (region-end)))))
+  (perform-replace
+   (concat "\\(" (regexp-quote from-string) "\\)\\|" (regexp-quote to-string))
+   `(replace-eval-replacement replace-quote (if (match-string 1) ,to-string ,from-string))
+   t t delimited nil nil start end))
+
+
 (define-key org-mode-map (kbd "<drag-n-drop>") 'my-dnd-func)
 (define-key org-mode-map (kbd "<C-drag-n-drop>") 'my-dnd-func)
 (define-key org-mode-map (kbd "<M-drag-n-drop>") 'my-dnd-func)
