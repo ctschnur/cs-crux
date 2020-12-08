@@ -151,13 +151,16 @@ With prefix arg, find the previous file. Adapted from https://emacs.stackexchang
 (defun outside-terminal-with-windows ()
   "open git-bash or cmd, if git-bash is not installed"
   (interactive)
-  (let ((proc (let* ((git-bash-path "C:/Users/nanospin/AppData/Local/Programs/Git/git-bash.exe"))
-                (if (file-exists-p git-bash-path)
-                    (progn
-                      (start-process "cmd" nil "cmd.exe" "/C"
-                                     "start" git-bash-path))
-                  (start-process "cmd" nil "cmd.exe" "/C" "start"
-                                 "cmd.exe")))))
+  (let ((proc
+         (let* ((git-bash-path "C:/Users/nanospin/AppData/Local/Programs/Git/git-bash.exe")
+                (anaconda-powershell-link-path
+                 "%homepath%/AppData/Roaming/Microsoft/Windows/Start Menu/Programs/Anaconda3 (64-bit)/Anaconda Powershell Prompt.lnk"))
+           (if (file-exists-p git-bash-path)
+               (progn
+                 (start-process "cmd" nil "cmd.exe" "/C" "start"
+                                git-bash-path))
+             (start-process "cmd" nil "cmd.exe" "/C" "start"
+                            "cmd.exe")))))
     (set-process-query-on-exit-flag proc nil)))
 
 (defun outside-terminal ()
@@ -172,11 +175,20 @@ With prefix arg, find the previous file. Adapted from https://emacs.stackexchang
 
 (defun outside-explorer ()
   (interactive)
-  (setq s (concat "nautilus "
-                  (file-name-directory buffer-file-name)
-                  " & "))
-  (message s)
-  (call-process-shell-command s nil 0))
+  (cond
+   ((eq system-type 'gnu/linux)
+    (let* (s)
+      (setq s (concat "nautilus "
+                      (file-name-directory buffer-file-name)
+                      " & "))
+      (message s)
+      (call-process-shell-command s nil 0)))
+   ((eq system-type 'windows-nt)
+    (let* (s)
+      (setq s (concat "start explorer ."))
+      (message s)
+      (call-process-shell-command s nil 0)))
+   (t (error "system not handled"))))
 
 (global-set-key (kbd "C-x C-m C-e")
                 'outside-explorer)  ; open gui file explorer
