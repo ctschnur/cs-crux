@@ -61,10 +61,15 @@ With prefix arg, find the previous file. Adapted from https://emacs.stackexchang
   (let* ((filepath (dired-get-filename nil t)))
     (message "Opening %s..." filepath)
     (cond
-     ((string-equal (file-name-extension filepath)
-                    "ipynb")
-      (cs-dired-open-notebook filepath))
-     (t (call-process "xdg-open" nil 0 nil filepath)))))
+     ((and (boundp 'cs-dired-open-notebook)
+           (string-equal (file-name-extension filepath)
+                         "ipynb")
+           (cs-dired-open-notebook filepath)))
+     (t (let* ()
+          (if (equal system-type 'gnu/linux)
+              (call-process "xdg-open" nil 0 nil filepath)
+            (if (equal system-type 'windows-nt)
+                (shell-command-to-string (concat "start " filepath)))))))))
 
 (define-key dired-mode-map (kbd "C-c C-o") 'cs-dired-open-file-externally)
 
@@ -302,10 +307,12 @@ With prefix arg, find the previous file. Adapted from https://emacs.stackexchang
      (list (nth 0 common) (nth 1 common) (nth 2 common)
            (if (use-region-p) (region-beginning))
            (if (use-region-p) (region-end)))))
-  (perform-replace
-   (concat "\\(" (regexp-quote from-string) "\\)\\|" (regexp-quote to-string))
-   `(replace-eval-replacement replace-quote (if (match-string 1) ,to-string ,from-string))
-   t t delimited nil nil start end))
+  (save-excursion
+    (goto-char 0)
+    (perform-replace
+     (concat "\\(" (regexp-quote from-string) "\\)\\|" (regexp-quote to-string))
+     `(replace-eval-replacement replace-quote (if (match-string 1) ,to-string ,from-string))
+     t t delimited nil nil start end)))
 
 
 (define-key org-mode-map (kbd "<drag-n-drop>") 'my-dnd-func)
