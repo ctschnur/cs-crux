@@ -61,10 +61,15 @@ With prefix arg, find the previous file. Adapted from https://emacs.stackexchang
   (let* ((filepath (dired-get-filename nil t)))
     (message "Opening %s..." filepath)
     (cond
-     ((string-equal (file-name-extension filepath)
-                    "ipynb")
-      (cs-dired-open-notebook filepath))
-     (t (call-process "xdg-open" nil 0 nil filepath)))))
+     ((and (boundp 'cs-dired-open-notebook)
+           (string-equal (file-name-extension filepath)
+                         "ipynb")
+           (cs-dired-open-notebook filepath)))
+     (t (let* ()
+          (if (equal system-type 'gnu/linux)
+              (call-process "xdg-open" nil 0 nil filepath)
+            (if (equal system-type 'windows-nt)
+                (shell-command-to-string (concat "start " filepath)))))))))
 
 (define-key dired-mode-map (kbd "C-c C-o") 'cs-dired-open-file-externally)
 
@@ -146,32 +151,59 @@ With prefix arg, find the previous file. Adapted from https://emacs.stackexchang
 (defun outside-terminal-with-windows ()
   "open git-bash or cmd, if git-bash is not installed"
   (interactive)
-  (let ((proc (let* ((git-bash-path "C:/Users/nanospin/AppData/Local/Programs/Git/git-bash.exe"))
-                (if (file-exists-p git-bash-path)
-                    (progn
-                      (start-process "cmd" nil "cmd.exe" "/C"
-                                     "start" git-bash-path))
-                  (start-process "cmd" nil "cmd.exe" "/C" "start"
-                                 "cmd.exe")))))
-    (set-process-query-on-exit-flag proc nil)))
+  (let ((proc
+         (let* ((shells-paths
+                 (remove nil
+                         (mapcar (lambda (path)
+                                   (when (file-exists-p path)
+                                     path))
+                                 (list (concat (file-name-as-directory (expand-file-name "~"))
+                                               "Microsoft/Windows/Start Menu/Programs/Anaconda3 (64-bit)/Anaconda Powershell Prompt.lnk")
+                                       (concat (file-name-as-directory (expand-file-name "~"))
+                                               "%homepath%/AppData/Roaming/Microsoft/Windows/Start Menu/Programs/Anaconda3 (64-bit)/Anaconda Powershell Prompt (anaconda3).lnk")
+                                       (concat (file-name-as-directory (expand-file-name "~/../..")
+                                                                       ; base dir of user, like "c:/Users/IEUser"nn
+                                                                       )
+                                               "AppData/Local/Programs/Git/git-bash.exe")
+                                       (concat (file-name-as-directory (expand-file-name "/"))
+                                               "Program Files/Git/git-bash.exe"))))))))))
 
-(defun outside-terminal ()
-  (interactive)
+
+  (start-process "cmd"
+               nil
+               "cmd.exe"
+               "/C"
+               " start cmd.exe"))
+
+(defun outside-terminal (&optional arg)
+  (interactive "p")
   (if (eq system-type 'gnu/linux)
       (outside-terminal-with-tmux)
     (if (eq system-type 'windows-nt)
-        (outside-terminal-with-windows))))
+        (progn
+          (outside-terminal-with-windows)
+          (when (eq arg 4)
+            (message (prin1-to-string (open-anaconda-powershell))))))))
 
 (global-set-key (kbd "C-x C-m C-t")
                 'outside-terminal)
 
 (defun outside-explorer ()
   (interactive)
-  (setq s (concat "nautilus "
-                  (file-name-directory buffer-file-name)
-                  " & "))
-  (message s)
-  (call-process-shell-command s nil 0))
+  (cond
+   ((eq system-type 'gnu/linux)
+    (let* (s)
+      (setq s (concat "nautilus "
+                      (file-name-directory buffer-file-name)
+                      " & "))
+      (message s)
+      (call-process-shell-command s nil 0)))
+   ((eq system-type 'windows-nt)
+    (let* (s)
+      (setq s (concat "start explorer ."))
+      (message s)
+      (call-process-shell-command s nil 0)))
+   (t (error "system not handled"))))
 
 (global-set-key (kbd "C-x C-m C-e")
                 'outside-explorer)  ; open gui file explorer
@@ -225,6 +257,25 @@ With prefix arg, find the previous file. Adapted from https://emacs.stackexchang
 
 (global-set-key (kbd "C-, c f c")
                 'cs-put-file-name-on-clipboard)
+
+
+(defun cs-put-directory-name-on-clipboard ()
+  (interactive)
+  (let ((dir-name (file-name-directory (if (equal major-mode 'dired-mode)
+                                           default-directory
+                                         (buffer-file-name)))))
+    (when dir-name
+      (with-temp-buffer
+        (insert dir-name)
+        (clipboard-kill-region (point-min)
+                               (point-max)))
+      (message dir-name))))
+
+(global-set-key (kbd "C-, c d c")
+                'cs-put-directory-name-on-clipboard)
+
+(global-set-key (kbd "C-, c d o")
+                'cs-open-file-from-clipboard)
 
 
 ;; ---- open file from clipboard
@@ -302,10 +353,12 @@ With prefix arg, find the previous file. Adapted from https://emacs.stackexchang
      (list (nth 0 common) (nth 1 common) (nth 2 common)
            (if (use-region-p) (region-beginning))
            (if (use-region-p) (region-end)))))
-  (perform-replace
-   (concat "\\(" (regexp-quote from-string) "\\)\\|" (regexp-quote to-string))
-   `(replace-eval-replacement replace-quote (if (match-string 1) ,to-string ,from-string))
-   t t delimited nil nil start end))
+  (save-excursion
+    (goto-char 0)
+    (perform-replace
+     (concat "\\(" (regexp-quote from-string) "\\)\\|" (regexp-quote to-string))
+     `(replace-eval-replacement replace-quote (if (match-string 1) ,to-string ,from-string))
+     t t delimited nil nil start end)))
 
 
 (define-key org-mode-map (kbd "<drag-n-drop>") 'my-dnd-func)
@@ -324,7 +377,45 @@ On an import statement, this function jumps to the file at point in that conda v
   ;;           (file-name-as-directory pyvenv-workon)
   ;;           "lib/site-packages/"
   ;;           (set-text-properties 0 (length wap) nil wap)))
-  )
+)
+
+(defun open-anaconda-powershell (&optional environment-name)
+  (interactive)
+  (unless environment-name
+    (if (and (boundp 'pyvenv-workon) pyvenv-workon)
+        (setq environment-name pyvenv-workon)
+      (setq environment-name "anaconda3")))
+  (let* ((tmp-file-path (concat (temporary-file-directory)
+                                "anaconda-powershell-link-no-spaces.lnk"))
+         (anaconda-powershell-link-path (concat (file-name-as-directory (expand-file-name "~"))
+                                                "Microsoft/Windows/Start Menu/Programs/Anaconda3 (64-bit)/Anaconda Powershell Prompt ("
+                                                environment-name
+                                                ").lnk")))
+    (if (file-exists-p anaconda-powershell-link-path)
+        (progn
+          (copy-file anaconda-powershell-link-path tmp-file-path
+                     t)
+          (start-process "cmd"
+                         nil
+                         "cmd.exe"
+                         "/C"
+                         (concat "start " tmp-file-path))
+          t)
+      (message (concat "no file " anaconda-powershell-link-path))
+      nil)))
+
+(defun open-cmd-with-anaconda-enabled (&optional environment-name)
+  (interactive)
+  (unless environment-name
+    (if (and (boundp 'pyvenv-workon) pyvenv-workon)
+        (setq environment-name pyvenv-workon)
+      (setq environment-name "base")))
+  (set-process-query-on-exit-flag (start-process "cmd"
+                                                 nil
+                                                 "cmd.exe"
+                                                 "/C"
+                                                 (concat "start conda activate " environment-name))
+                                  nil))
 
 (defun xah-insert-random-uuid ()
   "Insert a UUID.
