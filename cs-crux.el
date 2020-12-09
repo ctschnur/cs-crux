@@ -326,5 +326,262 @@ On an import statement, this function jumps to the file at point in that conda v
   ;;           (set-text-properties 0 (length wap) nil wap)))
   )
 
+(defun xah-insert-random-uuid ()
+  "Insert a UUID.
+This commands calls “uuidgen” on MacOS, Linux, and calls PowelShell on Microsoft Windows.
+URL `http://ergoemacs.org/emacs/elisp_generate_uuid.html'
+Version 2020-06-04"
+  (interactive)
+  (cond
+   ((string-equal system-type "windows-nt")
+    (shell-command "pwsh.exe -Command [guid]::NewGuid().toString()" t))
+   ((string-equal system-type "darwin") ; Mac
+    (shell-command "uuidgen" t))
+   ((string-equal system-type "gnu/linux")
+    (shell-command "uuidgen" t))
+   (t
+    ;; code here by Christopher Wellons, 2011-11-18.
+    ;; and editted Hideki Saito further to generate all valid variants for "N" in xxxxxxxx-xxxx-Mxxx-Nxxx-xxxxxxxxxxxx format.
+    (let ((myStr (md5 (format "%s%s%s%s%s%s%s%s%s%s"
+                              (user-uid)
+                              (emacs-pid)
+                              (system-name)
+                              (user-full-name)
+                              (current-time)
+                              (emacs-uptime)
+                              (garbage-collect)
+                              (buffer-string)
+                              (random)
+                              (recent-keys)))))
+      (insert (format "%s-%s-4%s-%s%s-%s"
+                      (substring myStr 0 8)
+                      (substring myStr 8 12)
+                      (substring myStr 13 16)
+                      (format "%x" (+ 8 (random 4)))
+                      (substring myStr 17 20)
+                      (substring myStr 20 32)))))))
+
+(defun xah-get-random-uuid ()
+  "Insert a UUID.
+This commands calls “uuidgen” on MacOS, Linux, and calls PowelShell on Microsoft Windows.
+URL `http://ergoemacs.org/emacs/elisp_generate_uuid.html'
+Version 2020-06-04"
+  (interactive)
+  (cond
+   ((string-equal system-type "windows-nt")
+    (shell-command "pwsh.exe -Command [guid]::NewGuid().toString()" t))
+   ((string-equal system-type "darwin") ; Mac
+    (shell-command "uuidgen" t))
+   ((string-equal system-type "gnu/linux")
+    (shell-command-to-string "uuidgen"))
+   (t
+    ;; code here by Christopher Wellons, 2011-11-18.
+    ;; and editted Hideki Saito further to generate all valid variants for "N" in xxxxxxxx-xxxx-Mxxx-Nxxx-xxxxxxxxxxxx format.
+    )))
+
+
+(defun cs-get-uuid ()
+  ""
+  (let ((myStr (md5 (format "%s%s%s%s%s%s%s%s%s%s"
+                              (user-uid)
+                              (emacs-pid)
+                              (system-name)
+                              (user-full-name)
+                              (current-time)
+                              (emacs-uptime)
+                              (garbage-collect)
+                              (buffer-string)
+                              (random)
+                              (recent-keys)))))
+      (format "%s-%s-4%s-%s%s-%s"
+              (substring myStr 0 8)
+              (substring myStr 8 12)
+              (substring myStr 13 16)
+              (format "%x" (+ 8 (random 4)))
+              (substring myStr 17 20)
+              (substring myStr 20 32))))
+
+
+(defun create-node (&optional arg)
+  "creates an org-mode file with a uuid as the name and inserts a link to that file, plus a marker of type branch with a uuid at the beginning. "
+  (interactive "P")
+
+  ;; (when (org-cursor-on-link)
+  ;;   (error "move cursor away from link!"))
+
+  (unless (string-equal "org"
+                        (file-name-extension (buffer-file-name)))
+    (error "not an org file"))
+
+  ;; move cursor so that the links are not directly adjacent to each other, but
+  ;; separated by a space
+  (let* ((left-or-right (org-cursor-move-next-to-link)))
+    (if (eq left-or-right 'left)
+        (save-excursion
+          (insert " "))
+      (if (eq left-or-right 'left)
+          (insert " "))))
+
+  (push-mark)
+  (let* ((uuid (cs-get-uuid))
+         (uuid-str-len (length uuid))
+         (uuid-preview-substring (substring uuid
+                                            (- uuid-str-len 2)
+                                            uuid-str-len)))
+    ;; (insert (concat "[[t:" uuid "][t:" uuid-preview-substring "]]"))
+    ;; insert source at current position
+    (insert (concat "[[s:" uuid "][s:" uuid-preview-substring
+                    "]]"))
+    (save-buffer)
+    (let* ((string-to-insert (concat "[[t:" uuid "][t:" uuid-preview-substring
+                                     "]]" " ")))
+      (if (equal arg '(4))
+          (let* ()
+            ;; insert target marker in target file
+            (find-file (concat (cs-get-uuid)
+                               ".org")))
+        (let* ()
+          (end-of-buffer)
+          (insert "\n\n")))
+      (insert string-to-insert)
+      (save-buffer)))
+  ;; disable god mode -> be ready to insert with cursor
+
+  (if (boundp 'god-local-mode)
+      (god-local-mode -1)))
+
+(require 'helm-ag)
+
+(defun cs-helm-follow-if-only-one-candidate ()
+  (interactive)
+  ;; (helm-execute-selection-action)
+  ;; (helm-exit-and-execute-action)
+  (when (equal 1 (helm-get-candidate-number))
+    (progn
+      (helm-execute-selection-action)
+      (helm-exit-minibuffer))))
+
+(defun cs-crux-goto-target (&optional link-content)
+  "given a source, go to the target (there should be only one target)"
+  (push-mark)
+  (save-buffer)
+  (let* ((grep-find-ignored-files (-flatten (list "*.org#" grep-find-ignored-files)))
+         ;; (helm-execute-action-at-once-if-one t)
+         (helm-do-ag--sentinel-finished-function 'cs-helm-follow-if-only-one-candidate)
+         )
+    (helm-do-ag default-directory nil (concat "\\[t:" link-content))))
+
+(defun cs-crux-target-show-sources (&optional link-content)
+  "given a target, show all the sources"
+  (push-mark)
+  (save-buffer)
+  (let* ((grep-find-ignored-files (-flatten (list "*.org#" grep-find-ignored-files)))
+         ;; (helm-follow-mode-persistent t)
+         ;; (helm-execute-action-at-once-if-one t)
+         (helm-do-ag--sentinel-finished-function 'cs-helm-follow-if-only-one-candidate)
+         (helm-ag--actions (helm-make-actions "Ope file"
+                                              (lambda (candidate)
+                                                (interactive)
+                                                ;; (message ;; (prin1-to-string
+                                                ;;  ;;  (list candidate
+                                                ;;  ;;        (let* ((str candidate)
+                                                ;;  ;;               (filename-substr (st))))
+                                                ;;  ;;        helm-ag--default-directory)) (let* ((source-string (buffer-substring-no-properties (point-min)
+                                                ;;  ;; (point-max)
+                                                ;;  )
+                                                (let* ((source-string candidate)
+                                                       (string-match-start-pos (string-match "\\(.*\.\\):\\([0-9]+?\\):" source-string))
+                                                       (filename (match-string-no-properties 1 source-string))
+                                                       (filepath (concat helm-ag--default-directory filename))
+                                                       (line (string-to-number (match-string-no-properties 2 source-string))))
+                                                  ;; (message filepath)
+                                                  (find-file-existing filepath)
+                                                  ;; enable god mode -> dont have to use ctrl
+                                                  (if (boundp 'god-local-mode)
+                                                      (god-local-mode 1))
+                                                  ;; (message line)
+                                                  (goto-line line)
+                                                  (re-search-forward (concat "\\[s:" link-content))))
+                                              "Open file other window"
+                                              #'helm-ag--action-find-file-other-window
+                                              "Save results in buffer"
+                                              #'helm-ag--action-save-buffer
+                                              "Edit search results"
+                                              #'helm-ag--edit))
+         ;; (helm-ag-show-status-function '(lambda ()
+         ;;                                 (interactive)
+         ;;                                 (error "this is wrong")
+         ;;                                 ;; (helm-ag-show-status-default-mode-line)
+         ;;                                 ;; (prin1-to-string (length (helm-marked-candidates)))
+         ;;                                 ))
+         )
+    (helm-do-ag default-directory
+                nil
+                (concat "\\[s:" link-content))))
+
+(defun org-delete-link ()
+  ""
+  (interactive)
+  (let ((elem (org-element-context)))
+    (if (eq (car elem) 'link)
+        (let* ((content-begin (org-element-property :contents-begin elem))
+               (content-end  (org-element-property :contents-end elem))
+               (link-begin (org-element-property :begin elem))
+               (link-end (org-element-property :end elem)))
+          (if (and content-begin content-end)
+              (let ((content (buffer-substring-no-properties content-begin content-end)))
+                (delete-region link-begin link-end)
+                ;; (insert content)
+                ))))))
+
+(defun org-cursor-on-link ()
+  "check if cursor is on link"
+  (interactive)
+  (let ((elem (org-element-context)))
+    (if (eq (car elem) 'link)
+        (let* ((content-begin (org-element-property :contents-begin elem))
+               (content-end  (org-element-property :contents-end elem))
+               (link-begin (org-element-property :begin elem))
+               (link-end (org-element-property :end elem)))
+          (if (and content-begin content-end)
+              (let ((content (buffer-substring-no-properties content-begin content-end)))
+                (when (and (< (point) link-end)
+                           (> (point) link-begin))
+                  (list link-begin link-end))))))))
+
+(defun org-cursor-move-next-to-link ()
+  "check if cursor is on link, if it is, move it to the start/end"
+  (interactive)
+  (let* (result link-begin
+                link-end)
+    (setq result (org-cursor-on-link))
+    (when result
+      (setq link-begin (nth 0 result))
+      (setq link-end (nth 1 result))
+      (if (< (abs (- link-begin (point)))
+             (abs (- link-end (point))))
+          (progn
+            (goto-char link-begin)
+            'left)
+        (progn
+          (goto-char (- link-end 1))
+          'right)))))
+
+
+(org-link-set-parameters "s"
+                         :follow #'cs-crux-goto-target
+                         :face '(:foreground "green" :underline nil))
+
+(org-link-set-parameters "t"
+                         :follow #'cs-crux-target-show-sources
+                         :face '(:foreground "yellow" :underline nil))
+
+(define-key org-mode-map (kbd "C-, k") 'org-delete-link)
+(define-key org-mode-map (kbd "C-, C-k") 'org-delete-link)
+(define-key org-mode-map (kbd "C-, s") 'create-node)
+(define-key org-mode-map (kbd "C-, C-d") 'create-node)
+
+
+
 (provide 'cs-crux)
 ;;; cs-crux.el ends here
