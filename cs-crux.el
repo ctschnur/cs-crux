@@ -61,10 +61,10 @@ With prefix arg, find the previous file. Adapted from https://emacs.stackexchang
   (let* ((filepath (dired-get-filename nil t)))
     (message "Opening %s..." filepath)
     (cond
-     ((and (boundp 'cs-dired-open-notebook)
+     ((and (fboundp 'jm-dired-open-notebook)
            (string-equal (file-name-extension filepath)
-                         "ipynb")
-           (cs-dired-open-notebook filepath)))
+                         "ipynb"))
+      (jm-dired-open-notebook filepath))
      (t (let* ()
           (if (equal system-type 'gnu/linux)
               (call-process "xdg-open" nil 0 nil filepath)
